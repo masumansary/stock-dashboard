@@ -1,3 +1,4 @@
+import hmac
 import sqlite3
 from datetime import datetime
 from typing import Optional
@@ -349,6 +350,19 @@ def render_header() -> None:
     )
 
 
+def is_write_access_granted() -> bool:
+    if "write_access" not in st.session_state:
+        st.session_state.write_access = False
+
+    secret_password = st.secrets.get("admin_password", "")
+    entered_password = st.session_state.get("admin_password_input", "")
+
+    if secret_password and entered_password:
+        st.session_state.write_access = hmac.compare_digest(entered_password, secret_password)
+
+    return st.session_state.write_access
+
+
 # =========================
 # App
 # =========================
@@ -521,33 +535,44 @@ def main() -> None:
 
     st.write("")
     st.subheader("Add Transaction")
-    with st.form("add_transaction_form", clear_on_submit=True):
-        f1, f2, f3, f4, f5 = st.columns(5)
-        with f1:
-            trade_date = st.date_input("Date", value=datetime.today())
-        with f2:
-            ticker = st.text_input("Ticker", placeholder="e.g. NVDA").upper().strip()
-        with f3:
-            transaction_type = st.selectbox("Type", TRANSACTION_TYPES)
-        with f4:
-            quantity = st.number_input("Quantity", min_value=0.0001, value=1.0, step=1.0, format="%.4f")
-        with f5:
-            price = st.number_input("Price", min_value=0.0001, value=1.0, step=0.01, format="%.4f")
 
-        submitted = st.form_submit_button("Save Transaction", use_container_width=True)
-        if submitted:
-            if not ticker:
-                st.error("Ticker is required.")
-            else:
-                insert_transaction(
-                    trade_date=str(trade_date),
-                    ticker=ticker,
-                    transaction_type=transaction_type,
-                    quantity=float(quantity),
-                    price=float(price),
-                )
-                st.success(f"{transaction_type} transaction saved for {ticker}.")
+    if is_write_access_granted():
+        st.success("Write access enabled.")
+        with st.form("add_transaction_form", clear_on_submit=True):
+            f1, f2, f3, f4, f5 = st.columns(5)
+            with f1:
+                trade_date = st.date_input("Date", value=datetime.today())
+            with f2:
+                ticker = st.text_input("Ticker", placeholder="e.g. NVDA").upper().strip()
+            with f3:
+                transaction_type = st.selectbox("Type", TRANSACTION_TYPES)
+            with f4:
+                quantity = st.number_input("Quantity", min_value=0.0001, value=1.0, step=1.0, format="%.4f")
+            with f5:
+                price = st.number_input("Price", min_value=0.0001, value=1.0, step=0.01, format="%.4f")
+
+            submitted = st.form_submit_button("Save Transaction", use_container_width=True)
+            if submitted:
+                if not ticker:
+                    st.error("Ticker is required.")
+                else:
+                    insert_transaction(
+                        trade_date=str(trade_date),
+                        ticker=ticker,
+                        transaction_type=transaction_type,
+                        quantity=float(quantity),
+                        price=float(price),
+                    )
+                    st.success(f"{transaction_type} transaction saved for {ticker}.")
+                    st.rerun()
+    else:
+        st.info("Analytics are public. Transaction entry is password protected.")
+        st.text_input("Admin password", type="password", key="admin_password_input")
+        if st.button("Unlock Transaction Entry", use_container_width=False):
+            if is_write_access_granted():
                 st.rerun()
+            else:
+                st.error("Incorrect password.")
 
     st.write("")
     st.subheader("Transaction History")
