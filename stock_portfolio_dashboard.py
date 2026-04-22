@@ -168,6 +168,40 @@ def insert_transaction(trade_date: str, ticker: str, transaction_type: str, quan
     get_latest_prices.clear()
 
 
+def update_transaction(transaction_id: int, trade_date: str, ticker: str, transaction_type: str, quantity: float, price: float) -> None:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE transactions
+        SET trade_date = ?, ticker = ?, transaction_type = ?, quantity = ?, price = ?
+        WHERE id = ?
+        """,
+        (
+            trade_date,
+            ticker.upper().strip(),
+            transaction_type,
+            float(quantity),
+            float(price),
+            int(transaction_id),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    load_transactions.clear()
+    get_latest_prices.clear()
+
+
+def delete_transaction(transaction_id: int) -> None:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM transactions WHERE id = ?", (int(transaction_id),))
+    conn.commit()
+    conn.close()
+    load_transactions.clear()
+    get_latest_prices.clear()
+
+
 @st.cache_data(ttl=60)
 def get_initial_capital() -> float:
     conn = get_connection()
@@ -592,6 +626,71 @@ def main() -> None:
             }
         )
         st.dataframe(history_df, use_container_width=True, hide_index=True)
+
+        if is_write_access_granted():
+            st.write("")
+            st.subheader("Edit / Delete Transaction")
+
+            transaction_options = [
+                f"{row['id']} | {row['trade_date']} | {row['ticker']} | {row['transaction_type']} | Qty: {row['quantity']} | Price: {row['price']}"
+                for _, row in transactions_df.iterrows()
+            ]
+            selected_option = st.selectbox("Select Transaction", transaction_options)
+            selected_id = int(selected_option.split("|")[0].strip())
+            selected_row = transactions_df.loc[transactions_df["id"] == selected_id].iloc[0]
+
+            e1, e2, e3, e4, e5 = st.columns(5)
+            with e1:
+                edit_date = st.date_input("Edit Date", value=pd.to_datetime(selected_row["trade_date"]).date(), key="edit_date")
+            with e2:
+                edit_ticker = st.text_input("Edit Ticker", value=selected_row["ticker"], key="edit_ticker").upper().strip()
+            with e3:
+                edit_type = st.selectbox(
+                    "Edit Type",
+                    TRANSACTION_TYPES,
+                    index=TRANSACTION_TYPES.index(selected_row["transaction_type"]),
+                    key="edit_type",
+                )
+            with e4:
+                edit_quantity = st.number_input(
+                    "Edit Quantity",
+                    min_value=0.0001,
+                    value=float(selected_row["quantity"]),
+                    step=1.0,
+                    format="%.4f",
+                    key="edit_quantity",
+                )
+            with e5:
+                edit_price = st.number_input(
+                    "Edit Price",
+                    min_value=0.0001,
+                    value=float(selected_row["price"]),
+                    step=0.01,
+                    format="%.4f",
+                    key="edit_price",
+                )
+
+            b1, b2 = st.columns(2)
+            with b1:
+                if st.button("Update Transaction", use_container_width=True):
+                    if not edit_ticker:
+                        st.error("Ticker is required.")
+                    else:
+                        update_transaction(
+                            transaction_id=selected_id,
+                            trade_date=str(edit_date),
+                            ticker=edit_ticker,
+                            transaction_type=edit_type,
+                            quantity=float(edit_quantity),
+                            price=float(edit_price),
+                        )
+                        st.success("Transaction updated.")
+                        st.rerun()
+            with b2:
+                if st.button("Delete Transaction", use_container_width=True):
+                    delete_transaction(selected_id)
+                    st.success("Transaction deleted.")
+                    st.rerun()
 
 
 if __name__ == "__main__":
