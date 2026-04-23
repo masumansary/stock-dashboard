@@ -1,3 +1,8 @@
 streamlit run stock_portfolio_dashboard.py
 
 streamlit run stock_portfolio_dashboard - Copy.py
+
+
+git add .gitignore
+git commit -m "Stop tracking local database"
+git push
