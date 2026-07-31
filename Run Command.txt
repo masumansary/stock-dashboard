@@ -2,5 +2,9 @@ streamlit run stock_portfolio_dashboard.py
 
 streamlit run stock_portfolio_dashboard - Copy.py
 
+git add .
 git commit -m "Update app and portfolio database"
 git push
+
+
+Pass: Masum1995!
