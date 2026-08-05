@@ -1,5 +1,6 @@
-streamlit
+streamlit==1.60.0
 pandas
 plotly
 yfinance
 streamlit-autorefresh
+starlette<0.48
